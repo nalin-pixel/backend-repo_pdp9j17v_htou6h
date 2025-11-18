@@ -1,6 +1,11 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List
+
+from database import create_document, get_documents
+from schemas import WeddingInquiry
 
 app = FastAPI()
 
@@ -19,6 +24,38 @@ def read_root():
 @app.get("/api/hello")
 def hello():
     return {"message": "Hello from the backend API!"}
+
+# Wedding inquiries endpoints
+@app.post("/api/inquiries")
+def create_inquiry(inquiry: WeddingInquiry):
+    try:
+        inserted_id = create_document("weddinginquiry", inquiry)
+        return {"status": "success", "id": inserted_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class InquiryOut(BaseModel):
+    bride_name: str
+    groom_name: str
+    email: str
+    phone: str | None = None
+    wedding_date: str | None = None
+    venue: str | None = None
+    guest_count: int | None = None
+    budget_range: str | None = None
+    services: List[str] | None = None
+    message: str | None = None
+
+@app.get("/api/inquiries", response_model=List[InquiryOut])
+def list_inquiries(limit: int = 50):
+    try:
+        docs = get_documents("weddinginquiry", limit=limit)
+        def clean(d):
+            d.pop("_id", None)
+            return d
+        return [clean(dict(doc)) for doc in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test")
 def test_database():
